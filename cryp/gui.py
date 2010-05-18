@@ -1,34 +1,15 @@
 #!/usr/bin/python
-import hashlib, random, uuid
 import string
-import os.path, glob
 
 import pygtk
 pygtk.require('2.0')
 
 import gtk, gobject, glib
-from Crypto.Cipher import AES, Blowfish
 
-ROOT = os.path.join(os.path.expanduser('~'), 'note', 'pass')
-KEYFILE = os.path.join(ROOT, '.key')
-BLOCKSIZE = 4096
-KEYSIZE1 = 32
-KEYSIZE2 = 4096
-KEYSIZE = KEYSIZE1 + KEYSIZE2
+from .storage import Storage
+
 PASSWORD_CHARS = string.digits + string.letters
 PASSWORD_LENGTH = 20
-
-randbytes = os.urandom
-
-def crypt(k1, k2, data):
-    one = AES.new(k1, AES.MODE_ECB)
-    two = Blowfish.new(k2, Blowfish.MODE_ECB)
-    return two.encrypt(one.encrypt(data))
-
-def decrypt(k1, k2, data):
-    one = AES.new(k1, AES.MODE_ECB)
-    two = Blowfish.new(k2, Blowfish.MODE_ECB)
-    return one.decrypt(two.decrypt(data))
 
 class Application(object):
     def __init__(self):
@@ -37,9 +18,10 @@ class Application(object):
         self.win.connect('key-press-event', self.windowkey)
         self.win.set_type_hint(gtk.gdk.WINDOW_TYPE_HINT_UTILITY)
         self.win.show()
+        self.store = Storage()
 
     def check_pass(self):
-        if os.path.exists(KEYFILE):
+        if self.store.created:
             return self._check_pass()
         else:
             return self._create_pass()
@@ -55,14 +37,7 @@ class Application(object):
         dlg.get_content_area().pack_start(entry)
         dlg.show_all()
         while dlg.run() == gtk.RESPONSE_OK:
-            k2 = entry.get_text()
-            k1 = hashlib.sha256(k2).digest()
-            with open(KEYFILE, 'rb') as f:
-                data = decrypt(k1, k2, f.read(BLOCKSIZE+KEYSIZE+64))
-            if hashlib.sha512(data[:-64]).digest() == data[-64:]:
-                key = data[BLOCKSIZE:-64]
-                self.key1 = key[:KEYSIZE1]
-                self.key2 = key[KEYSIZE1:]
+            if self.store.open(entry.get_text()):
                 dlg.hide()
                 return True
         else:
@@ -85,14 +60,7 @@ class Application(object):
         while not a.get_text() or a.get_text() != b.get_text():
             if dlg.run() != gtk.RESPONSE_OK:
                 return False
-        vec = randbytes(BLOCKSIZE)
-        key = randbytes(KEYSIZE)
-        k2 = a.get_text()
-        k1 = hashlib.sha256(k2).digest()
-        with open(KEYFILE, 'wb') as f:
-            f.write(crypt(k1, k2, vec+key+hashlib.sha512(vec+key).digest()))
-        self.key1 = key[:KEYSIZE1]
-        self.key2 = key[KEYSIZE1:]
+        self.store.create(a.get_text())
         dlg.hide()
         return True
 
@@ -113,10 +81,7 @@ class Application(object):
         vbox.pack_start(self.search, expand=False)
         lmod = gtk.ListStore(str, str, str)
         self.all = all = []
-        for i in glob.glob(os.path.join(ROOT, '*a')):
-            data = self.read(i)
-            val = data.splitlines()[0]
-            tup = (os.path.basename(i)[:-1], val, data)
+        for tup in self.store.titles(): #uid, title, date
             lmod.append(tup)
             all.append(tup)
         self.list = gtk.TreeView(lmod)
@@ -156,8 +121,8 @@ class Application(object):
         uid = widget.get_model()[path][0]
         self.fill_rec()
         self.recname = uid
-        self.note.get_buffer().set_text(self.read(os.path.join(ROOT, uid+'a')))
-        self.password.set_text(self.read(uid+'b'))
+        self.note.get_buffer().set_text(self.store.entry(uid))
+        self.password.set_text(self.store.secret(uid))
 
     def windowkey(self, widget, event):
         if event.state == gtk.gdk.CONTROL_MASK:
@@ -171,8 +136,8 @@ class Application(object):
                 buf = self.note.get_buffer()
                 data = buf.get_text(*buf.get_bounds())
                 pw = self.password.get_text()
-                self.write(self.recname + 'a', data)
-                self.write(self.recname + 'b', pw)
+                self.store.update_entry(self.recname, data)
+                self.store.update_secret(self.recname, pw)
                 del self.recname
                 self.fill_main()
             elif event.keyval == gtk.keysyms.r:
@@ -192,16 +157,15 @@ class Application(object):
                         ))
                 dlg.set_transient_for(self.win)
                 if dlg.run() == gtk.RESPONSE_YES:
-                    os.unlink(os.path.join(ROOT, self.recname+'a'))
-                    os.unlink(os.path.join(ROOT, self.recname+'b'))
+                    self.store.remove(self.recname)
                     self.fill_main()
                 dlg.hide()
             elif event.keyval == gtk.keysyms.p:
                 if hasattr(self, 'recname'):
-                    tx = self.read(self.recname + 'b')
+                    tx = self.store.secret(self.recname)
                 else:
                     uid = self.list.get_model()[self.list.get_cursor()[0]][0]
-                    tx = self.read(uid + 'b')
+                    tx = self.store.secret(uid)
                 cb = gtk.Clipboard()
                 cb.set_text(tx)
             elif event.keyval == gtk.keysyms.e:
@@ -217,22 +181,6 @@ class Application(object):
             self.fill_main()
             return True
         return False
-
-    def write(self, name, data):
-        vec = randbytes(BLOCKSIZE)
-        with open(os.path.join(ROOT, name), 'wb') as f:
-            tail = len(data) % BLOCKSIZE
-            if tail:
-                data += '\x00'*(BLOCKSIZE-tail)
-            f.write(crypt(self.key1, self.key2, vec + data))
-
-    def read(self, name):
-        with open(os.path.join(ROOT, name), 'rb') as f:
-            res = decrypt(self.key1, self.key2, f.read())[BLOCKSIZE:]
-            try:
-                return res[:res.index('\x00')]
-            except IndexError:
-                return res
 
     def show_icon(self):
         self.icon = gtk.status_icon_new_from_stock(
