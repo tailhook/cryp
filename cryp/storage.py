@@ -20,8 +20,11 @@ def decrypt(k1, k2, data):
     return one.decrypt(two.decrypt(data))
 
 class Storage(object):
-    def __init__(self):
-        self.root = os.path.join(os.path.expanduser('~'), 'note', 'pass')
+    def __init__(self, path=None):
+        if path is None:
+            self.root = os.path.join(os.path.expanduser('~'), 'note', 'pass')
+        else:
+            self.root = os.path.realpath(path)
         self.keyfile = os.path.join(self.root, '.key')
         self.blocksize = 4096
         self.keysize1 = 32
@@ -62,16 +65,22 @@ class Storage(object):
             yield uid, val, data
 
     def entry(self, uid):
-        return self.read(os.path.join(self.root, uid+'a'))
+        try:
+            return self.read(os.path.join(self.root, uid+'a'))
+        except IOError:
+            raise KeyError(uid)
 
     def secret(self, uid):
-        return self.read(uid+'b')
+        try:
+            return self.read(uid+'b')
+        except IOError:
+            raise KeyError(uid)
 
-    def update_entry(self, data):
-        self.write(self.recname + 'a', data)
+    def update_entry(self, id, data):
+        self.write(id + 'a', data)
 
-    def update_secret(self, value):
-        self.write(self.recname + 'b', value)
+    def update_secret(self, id, value):
+        self.write(id + 'b', value)
 
     def remove(self, uid):
         os.unlink(os.path.join(self.root, uid+'b'))
@@ -90,7 +99,7 @@ class Storage(object):
             res = decrypt(self.key1, self.key2, f.read())[self.blocksize:]
             try:
                 return res[:res.index('\x00')]
-            except IndexError:
+            except (IndexError, ValueError):
                 return res
 
     @property
@@ -103,7 +112,7 @@ def main():
     while True:
         value = getpass.getpass('Master password: ')
         if not value:
-            returnR
+            return
         if store.open(value):
             break
     while True:
