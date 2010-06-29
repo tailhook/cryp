@@ -197,5 +197,8 @@ class Application(object):
         gtk.main()
         self.hide_icon()
 
-if __name__ == '__main__':
+def main():
     Application().run()
+
+if __name__ == '__main__':
+    main()
