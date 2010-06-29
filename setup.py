@@ -7,4 +7,5 @@ setup(name='Cryp',
       author_email='pc@gafol.net',
       url='svn://svn.gafol.net/cryp/',
       packages=['cryp'],
-     )
+      scripts=['scripts/cryp', 'scripts/cryp-cli', 'scripts/cryp-backup']
+    )

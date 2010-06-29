@@ -1,0 +1,2 @@
+from cryp import backup
+backup.main()

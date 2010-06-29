@@ -1,0 +1,2 @@
+from cryp import gui
+gui.main()
