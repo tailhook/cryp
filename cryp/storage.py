@@ -12,12 +12,12 @@ randbytes = os.urandom
 def crypt(k1, k2, data):
     one = AES.new(k1, AES.MODE_ECB)
     two = Blowfish.new(k2, Blowfish.MODE_ECB)
-    return two.encrypt(one.encrypt(data))
+    return one.encrypt(two.encrypt(data))
 
 def decrypt(k1, k2, data):
     one = AES.new(k1, AES.MODE_ECB)
     two = Blowfish.new(k2, Blowfish.MODE_ECB)
-    return one.decrypt(two.decrypt(data))
+    return two.decrypt(one.decrypt(data))
 
 class Storage(object):
     def __init__(self, path=None):
@@ -28,18 +28,20 @@ class Storage(object):
         self.keyfile = os.path.join(self.root, '.key')
         self.blocksize = 4096
         self.keysize1 = 32
-        self.keysize2 = 4096
+        self.keysize2 = 56
         self.keysize = self.keysize1 + self.keysize2
+        self.keypad = 16 - self.keysize % 16
 
     def open(self, value):
-        k2 = value
-        k1 = hashlib.sha256(k2).digest()
+        k2 = value[:56]
+        k1 = hashlib.sha256(value).digest()
         with open(self.keyfile, 'rb') as f:
-            data = decrypt(k1, k2, f.read(self.blocksize + self.keysize + 64))
+            datasize = self.blocksize + self.keysize + self.keypad + 64
+            data = decrypt(k1, k2, f.read(datasize))
         if hashlib.sha512(data[:-64]).digest() == data[-64:]:
             key = data[self.blocksize:-64]
             self.key1 = key[:self.keysize1]
-            self.key2 = key[self.keysize1:]
+            self.key2 = key[self.keysize1:self.keysize1+self.keysize2]
             return True
         else:
             return False
@@ -48,10 +50,12 @@ class Storage(object):
         assert not os.path.exists(self.keyfile)
         vec = randbytes(self.blocksize)
         key = randbytes(self.keysize)
-        k2 = value
-        k1 = hashlib.sha256(k2).digest()
+        k2 = value[:56]
+        k1 = hashlib.sha256(value).digest()
         with open(self.keyfile, 'wb') as f:
-            f.write(crypt(k1, k2, vec+key+hashlib.sha512(vec+key).digest()))
+            pad = randbytes(self.keypad)
+            body = vec+key+pad
+            f.write(crypt(k1, k2, body+hashlib.sha512(body).digest()))
         self.key1 = key[:self.keysize1]
         self.key2 = key[self.keysize1:]
         return True
