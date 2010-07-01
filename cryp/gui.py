@@ -1,5 +1,6 @@
 #!/usr/bin/python
 import string
+import uuid
 
 import pygtk
 pygtk.require('2.0')
