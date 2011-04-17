@@ -17,7 +17,6 @@ class Application(object):
         self.win = gtk.Window()
         self.win.connect('delete-event', lambda *a: gtk.main_quit())
         self.win.connect('key-press-event', self.windowkey)
-        self.win.set_type_hint(gtk.gdk.WINDOW_TYPE_HINT_UTILITY)
         self.win.show()
         self.store = Storage()
 
