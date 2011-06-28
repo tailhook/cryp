@@ -16,7 +16,7 @@ section = re.compile(r"^-{5,}", re.M)
 
 class PasswordGui(object):
 
-    def __init__(self, store, parentwin):
+    def __init__(self, store, parentwin=None):
         self.store = store
         self.parentwin = parentwin
 
@@ -201,8 +201,9 @@ class Application(object):
                             if not i.startswith('daemon:'):
                                 continue
                             key = i[len('daemon:'):i.index('\n')].strip()
+                            data = key + '\n' + i[i.index('\n')+1:].strip()
                             sec = self.store.secret(uid)
-                            ministore.update_entry(uid, key)
+                            ministore.update_entry(uid, data)
                             ministore.update_secret(uid, sec)
 
             else:

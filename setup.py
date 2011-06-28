@@ -9,7 +9,12 @@ setup(name='Cryp',
       author_email='pc@gafol.net',
       url='svn://svn.gafol.net/cryp/',
       packages=['cryp'],
-      scripts=['scripts/cryp', 'scripts/cryp-cli', 'scripts/cryp-backup'],
+      scripts=[
+        'scripts/cryp',
+        'scripts/cryp-cli',
+        'scripts/cryp-backup',
+        'scripts/cryp-daemon-get',
+        ],
       cmdclass={'build_ext': build_ext},
       ext_modules=[
         Extension("cryp._cipher", ["cryp/_cipher.pyx"], libraries=['crypto']),

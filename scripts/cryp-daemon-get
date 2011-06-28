@@ -1,0 +1,3 @@
+#!/usr/bin/env python3
+from cryp import daemon_get
+daemon_get.main()
