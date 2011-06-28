@@ -5,24 +5,20 @@ import uuid
 import os.path
 import glob
 
-from Crypto.Cipher import AES, Blowfish
+from ._cipher import aes_encrypt, aes_decrypt, bf_encrypt, bf_decrypt
 
 randbytes = os.urandom
 
 def crypt(k1, k2, data):
-    one = AES.new(k1, AES.MODE_ECB)
-    two = Blowfish.new(k2, Blowfish.MODE_ECB)
-    return one.encrypt(two.encrypt(data))
+    return aes_encrypt(bf_encrypt(data, k2), k1)
 
 def decrypt(k1, k2, data):
-    one = AES.new(k1, AES.MODE_ECB)
-    two = Blowfish.new(k2, Blowfish.MODE_ECB)
-    return two.decrypt(one.decrypt(data))
+    return bf_decrypt(aes_decrypt(data, k1), k2)
 
 class Storage(object):
     def __init__(self, path=None):
         if path is None:
-            self.root = os.path.join(os.path.expanduser('~'), 'note', 'pass')
+            self.root = os.path.join(os.path.expanduser('~'), 'note', 'pass2')
         else:
             self.root = os.path.realpath(path)
         self.keyfile = os.path.join(self.root, '.key')
@@ -63,28 +59,28 @@ class Storage(object):
     def titles(self):
         """Yields uid, title, description for each item in store"""
         for i in glob.glob(os.path.join(self.root, '*a')):
-            data = self.read(i)
+            data = self.read(i).decode('utf-8')
             val = data.splitlines()[0]
             uid = os.path.basename(i)[:-1]
             yield uid, val, data
 
     def entry(self, uid):
         try:
-            return self.read(os.path.join(self.root, uid+'a'))
+            return self.read(os.path.join(self.root, uid+'a')).decode('utf-8')
         except IOError:
             raise KeyError(uid)
 
     def secret(self, uid):
         try:
-            return self.read(uid+'b')
+            return self.read(uid+'b').decode('utf-8')
         except IOError:
             raise KeyError(uid)
 
     def update_entry(self, id, data):
-        self.write(id + 'a', data)
+        self.write(id + 'a', data.encode("utf-8"))
 
     def update_secret(self, id, value):
-        self.write(id + 'b', value)
+        self.write(id + 'b', value.encode("utf-8"))
 
     def remove(self, uid):
         os.unlink(os.path.join(self.root, uid+'b'))
@@ -95,14 +91,14 @@ class Storage(object):
         with open(os.path.join(self.root, name), 'wb') as f:
             tail = len(data) % self.blocksize
             if tail:
-                data += '\x00'*(self.blocksize-tail)
+                data += b'\x00'*(self.blocksize-tail)
             f.write(crypt(self.key1, self.key2, vec + data))
 
     def read(self, name):
         with open(os.path.join(self.root, name), 'rb') as f:
             res = decrypt(self.key1, self.key2, f.read())[self.blocksize:]
             try:
-                return res[:res.index('\x00')]
+                return res[:res.index(b'\x00')]
             except (IndexError, ValueError):
                 return res
 
@@ -117,27 +113,27 @@ def main():
         value = getpass.getpass('Master password: ')
         if not value:
             return
-        if store.open(value):
+        if store.open(value.encode('utf-8')):
             break
     while True:
         index = {}
         for idx, (uid, title, _) in enumerate(store.titles()):
-            print "{0:d}. {1}".format(idx+1, title)
+            print("{0:d}. {1}".format(idx+1, title))
             index[idx+1] = uid
-        val = raw_input("Record number or (q)uit: ")
+        val = input("Record number or (q)uit: ")
         try:
             uid = index[int(val)]
         except (KeyError, ValueError):
             if val in 'qx' or not val:
                 break
         while True:
-            what = raw_input("Show (d)escription or (p)assword or (r)return: ")
+            what = input("Show (d)escription or (p)assword or (r)return: ")
             if what == 'r':
                 break
             elif what == 'd':
-                print store.entry(uid)
+                print(store.entry(uid))
             elif what == 'p':
-                print store.secret(uid)
+                print(store.secret(uid))
 
 
 if __name__ == '__main__':

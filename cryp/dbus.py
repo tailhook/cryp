@@ -1,4 +1,4 @@
-from __future__ import absolute_import
+
 
 import dbus
 from dbus.service import (
@@ -97,7 +97,7 @@ class Service(DbusObject):
         self.collections = {
             'default': Collection(bus, 'login', store),
             }
-        for k, v in self.collections.iteritems():
+        for k, v in self.collections.items():
             v.add_to_connection(bus,
                 '/org/freedesktop/secrets/aliases/{0}'.format(k))
         self.sessions = {}
@@ -134,7 +134,7 @@ class Service(DbusObject):
                 continue
             info = yaml.load(data)
             attr = info.get('Attributes', {})
-            for k, v in input.iteritems():
+            for k, v in input.items():
                 if attr.get(k) != v:
                     break
             else:
@@ -164,7 +164,7 @@ class Prompt(DbusObject):
 
     @dbus_signal(dbus_interface=PROMPT, signature='s')
     def Prompt(self, window_id):
-        print "PROMPT", window_id
+        print("PROMPT", window_id)
 
     @dbus_signal(dbus_interface=PROMPT, signature='bv')
     def Completed(self, dismissed, result):

@@ -11,9 +11,9 @@ def dump(file):
         value = getpass.getpass('Master password: ')
         if not value:
             return
-        if store.open(value):
+        if store.open(value.encode('utf-8')):
             break
-    for uid, _, description in store.titles:
+    for uid, _, description in store.titles():
         yaml.dump({
             'key': uid,
             'description': description,
@@ -33,13 +33,13 @@ def restore(file):
             return
         two = getpass.getpass('Confirm master password: ')
         if one != two:
-            print "Passwords do not match"
+            print("Passwords do not match")
             continue
         if len(one) < 8:
-            print "More characters needed (probably a lot more!)"
+            print("More characters needed (probably a lot more!)")
             continue
         break
-    store.create(one)
+    store.create(one.encode('utf-8'))
     for item in yaml.load_all(file):
         store.update_entry(item['key'], item['description'])
         store.update_secret(item['key'], item['secret'])

@@ -1,21 +1,19 @@
 #!/usr/bin/python
 import string
 import uuid
+import random
 
-import pygtk
-pygtk.require('2.0')
-
-import gtk, gobject, glib
+from gi.repository import Gtk, GObject, GLib, Gdk
 
 from .storage import Storage
 
-PASSWORD_CHARS = string.digits + string.letters
+PASSWORD_CHARS = string.digits + string.ascii_letters
 PASSWORD_LENGTH = 20
 
 class Application(object):
     def __init__(self):
-        self.win = gtk.Window()
-        self.win.connect('delete-event', lambda *a: gtk.main_quit())
+        self.win = Gtk.Window()
+        self.win.connect('delete-event', lambda *a: Gtk.main_quit())
         self.win.connect('key-press-event', self.windowkey)
         self.win.show()
         self.store = Storage()
@@ -27,38 +25,39 @@ class Application(object):
             return self._create_pass()
 
     def _check_pass(self):
-        dlg = gtk.Dialog(title=u"Enter password", flags=gtk.DIALOG_MODAL,
+        dlg = Gtk.Dialog(title="Enter password", flags=Gtk.DialogFlags.MODAL,
             buttons=(
-            gtk.STOCK_OK, gtk.RESPONSE_OK,
-            gtk.STOCK_CANCEL, gtk.RESPONSE_CANCEL,
+            Gtk.STOCK_OK, Gtk.ResponseType.OK,
+            Gtk.STOCK_CANCEL, Gtk.ResponseType.CANCEL,
             ))
-        entry = gtk.Entry()
+        entry = Gtk.Entry()
         entry.props.visibility = False
-        dlg.get_content_area().pack_start(entry)
+        dlg.get_content_area().pack_start(entry, True, True, 8)
         dlg.show_all()
-        while dlg.run() == gtk.RESPONSE_OK:
-            if self.store.open(entry.get_text()):
+        while dlg.run() == Gtk.ResponseType.OK:
+            if self.store.open(entry.get_text().encode('utf-8')):
                 dlg.hide()
                 return True
         else:
             return False
 
     def _create_pass(self):
-        dlg = gtk.Dialog(title=u"Create password", flags=gtk.DIALOG_MODAL,
+        dlg = Gtk.Dialog(title="Create password", flags=Gtk.DialogFlags.MODAL,
             buttons=(
-            gtk.STOCK_OK, gtk.RESPONSE_OK,
-            gtk.STOCK_CANCEL, gtk.RESPONSE_CANCEL,
+            Gtk.STOCK_OK, Gtk.ResponseType.OK,
+            Gtk.STOCK_CANCEL, Gtk.ResponseType.CANCEL,
             ))
         dlg.set_transient_for(self.win)
-        a = gtk.Entry()
+        a = Gtk.Entry()
         a.props.visibility = False
-        b = gtk.Entry()
+        b = Gtk.Entry()
         b.props.visibility = False
-        dlg.get_content_area().pack_start(a)
+        dlg.get_content_area().pack_start(a,
+            expand=True, fill=True, padding=0)
         dlg.get_content_area().pack_start(b)
         dlg.show_all()
         while not a.get_text() or a.get_text() != b.get_text():
-            if dlg.run() != gtk.RESPONSE_OK:
+            if dlg.run() != Gtk.ResponseType.OK:
                 return False
         self.store.create(a.get_text())
         dlg.hide()
@@ -73,47 +72,43 @@ class Application(object):
                 mod.append(i)
 
     def fill_main(self):
-        if self.win.child:
-            self.win.remove(self.win.child)
-        vbox = gtk.VBox()
-        self.search = gtk.Entry()
+        if self.win.get_child():
+            self.win.remove(self.win.get_child())
+        vbox = Gtk.VBox()
+        self.search = Gtk.Entry()
         self.search.connect('changed', self.update_search)
-        vbox.pack_start(self.search, expand=False)
-        lmod = gtk.ListStore(str, str, str)
+        vbox.pack_start(self.search, False, False, 0)
+        lmod = Gtk.ListStore(str, str, str)
         self.all = all = []
         for tup in self.store.titles(): #uid, title, date
             lmod.append(tup)
             all.append(tup)
-        self.list = gtk.TreeView(lmod)
+        self.list = Gtk.TreeView(model=lmod)
         self.list.connect('row-activated', self.select_rec)
-        ren = gtk.CellRendererText()
-        col = gtk.TreeViewColumn("Title")
-        col.pack_start(ren)
+        ren = Gtk.CellRendererText()
+        col = Gtk.TreeViewColumn("Title")
+        col.pack_start(ren, False)
         col.add_attribute(ren, 'text', 1)
         self.list.append_column(col)
-        sw = gtk.ScrolledWindow()
+        sw = Gtk.ScrolledWindow()
         sw.add(self.list)
-        sw.set_policy(gtk.POLICY_AUTOMATIC, gtk.POLICY_AUTOMATIC)
-        self.list.set_hadjustment(sw.get_hadjustment())
-        self.list.set_vadjustment(sw.get_vadjustment())
-        vbox.pack_start(sw, expand=True)
+        sw.set_policy(Gtk.PolicyType.AUTOMATIC, Gtk.PolicyType.AUTOMATIC)
+        vbox.pack_start(sw, True, True, 0)
         self.win.add(vbox)
         vbox.show_all()
 
     def fill_rec(self):
-        if self.win.child:
-            self.win.remove(self.win.child)
-        vbox = gtk.VBox()
-        self.note = gtk.TextView()
-        sw = gtk.ScrolledWindow()
+        if self.win.get_child():
+            self.win.remove(self.win.get_child())
+        vbox = Gtk.VBox()
+        self.note = Gtk.TextView()
+        sw = Gtk.ScrolledWindow()
         sw.add(self.note)
-        sw.set_policy(gtk.POLICY_AUTOMATIC, gtk.POLICY_AUTOMATIC)
-        self.note.emit('set-scroll-adjustments',
-            sw.get_hadjustment(), sw.get_vadjustment())
-        vbox.pack_start(sw, expand=True)
-        self.password = gtk.Entry()
+        sw.set_policy(Gtk.PolicyType.AUTOMATIC, Gtk.PolicyType.AUTOMATIC)
+        vbox.pack_start(sw, True, True, 0)
+        self.password = Gtk.Entry()
         self.password.props.visibility = False
-        vbox.pack_start(self.password, expand=False)
+        vbox.pack_start(self.password, False, False, 0)
         self.win.add(vbox)
         vbox.show_all()
 
@@ -125,50 +120,56 @@ class Application(object):
         self.password.set_text(self.store.secret(uid))
 
     def windowkey(self, widget, event):
-        if event.state == gtk.gdk.CONTROL_MASK:
-            if event.keyval == gtk.keysyms.n:
+        if event.state == Gdk.ModifierType.CONTROL_MASK:
+            if event.keyval == Gdk.KEY_n:
                 self.recname = str(uuid.uuid4())
                 self.fill_rec()
-            elif event.keyval == gtk.keysyms.s:
+            elif event.keyval == Gdk.KEY_s:
                 if not hasattr(self, 'recname'):
                     self.search.grab_focus()
                     return False
                 buf = self.note.get_buffer()
-                data = buf.get_text(*buf.get_bounds())
+                a, b = buf.get_bounds()
+                data = buf.get_text(a, b, True)
                 pw = self.password.get_text()
                 self.store.update_entry(self.recname, data)
                 self.store.update_secret(self.recname, pw)
                 del self.recname
                 self.fill_main()
-            elif event.keyval == gtk.keysyms.r:
+            elif event.keyval == Gdk.KEY_r:
                 del self.recname
                 self.fill_main()
-            elif event.keyval == gtk.keysyms.j:
+            elif event.keyval == Gdk.KEY_j:
                 if hasattr(self, 'recname'):
                     if not self.password.get_text():
                         self.password.set_text(''.join(
                             random.choice(PASSWORD_CHARS)
-                            for i in xrange(PASSWORD_LENGTH)))
-            elif event.keyval == gtk.keysyms.d:
-                dlg = gtk.Dialog(title="Delete record?", flags=gtk.DIALOG_MODAL,
+                            for i in range(PASSWORD_LENGTH)))
+            elif event.keyval == Gdk.KEY_d:
+                dlg = Gtk.Dialog(title="Delete record?", flags=Gtk.DialogFlags.MODAL,
                     buttons=(
-                        gtk.STOCK_YES, gtk.RESPONSE_YES,
-                        gtk.STOCK_NO, gtk.RESPONSE_NO,
+                        Gtk.STOCK_YES, Gtk.ResponseType.YES,
+                        Gtk.STOCK_NO, Gtk.ResponseType.NO,
                         ))
                 dlg.set_transient_for(self.win)
-                if dlg.run() == gtk.RESPONSE_YES:
-                    self.store.remove(self.recname)
+                uid = self.list.get_model()[self.list.get_cursor()[0]][0]
+                tv = Gtk.TextView(editable=False)
+                tv.get_buffer().set_text(self.store.entry(uid))
+                tv.show()
+                dlg.get_content_area().pack_start(tv, True, True, 0)
+                if dlg.run() == Gtk.ResponseType.YES:
+                    self.store.remove(uid)
                     self.fill_main()
                 dlg.hide()
-            elif event.keyval == gtk.keysyms.p:
+            elif event.keyval == Gdk.KEY_p:
                 if hasattr(self, 'recname'):
                     tx = self.store.secret(self.recname)
                 else:
                     uid = self.list.get_model()[self.list.get_cursor()[0]][0]
                     tx = self.store.secret(uid)
-                cb = gtk.Clipboard()
-                cb.set_text(tx)
-            elif event.keyval == gtk.keysyms.e:
+                cb = Gtk.Clipboard.get(Gdk.atom_intern("CLIPBOARD", True))
+                cb.set_text(tx, len(tx.encode('utf-8')))
+            elif event.keyval == Gdk.KEY_e:
                 if hasattr(self, 'recname'):
                     self.password.grab_focus()
                 else:
@@ -176,15 +177,15 @@ class Application(object):
             else:
                 return False
             return True
-        if event.keyval == gtk.keysyms.Escape:
+        if event.keyval == Gdk.KEY_Escape:
             del self.recname
             self.fill_main()
             return True
         return False
 
     def show_icon(self):
-        self.icon = gtk.status_icon_new_from_stock(
-            gtk.STOCK_DIALOG_AUTHENTICATION)
+        self.icon = Gtk.StatusIcon.new_from_stock(
+            Gtk.STOCK_DIALOG_AUTHENTICATION)
 
     def hide_icon(self):
         self.icon.set_visible(False)
@@ -194,7 +195,7 @@ class Application(object):
             return False
         self.fill_main()
         self.show_icon()
-        gtk.main()
+        Gtk.main()
         self.hide_icon()
 
 def main():
