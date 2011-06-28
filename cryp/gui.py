@@ -2,6 +2,8 @@
 import string
 import uuid
 import random
+import os.path
+import re
 
 from gi.repository import Gtk, GObject, GLib, Gdk
 
@@ -9,14 +11,14 @@ from .storage import Storage
 
 PASSWORD_CHARS = string.digits + string.ascii_letters
 PASSWORD_LENGTH = 20
+daemon_section = re.compile(r"^-{5,}\s*daemon:", re.M)
+section = re.compile(r"^-{5,}", re.M)
 
-class Application(object):
-    def __init__(self):
-        self.win = Gtk.Window()
-        self.win.connect('delete-event', lambda *a: Gtk.main_quit())
-        self.win.connect('key-press-event', self.windowkey)
-        self.win.show()
-        self.store = Storage()
+class PasswordGui(object):
+
+    def __init__(self, store, parentwin):
+        self.store = store
+        self.parentwin = parentwin
 
     def check_pass(self):
         if self.store.created:
@@ -30,6 +32,8 @@ class Application(object):
             Gtk.STOCK_OK, Gtk.ResponseType.OK,
             Gtk.STOCK_CANCEL, Gtk.ResponseType.CANCEL,
             ))
+        if self.parentwin:
+            dlg.set_transient_for(self.parentwin)
         entry = Gtk.Entry()
         entry.props.visibility = False
         dlg.get_content_area().pack_start(entry, True, True, 8)
@@ -47,21 +51,29 @@ class Application(object):
             Gtk.STOCK_OK, Gtk.ResponseType.OK,
             Gtk.STOCK_CANCEL, Gtk.ResponseType.CANCEL,
             ))
-        dlg.set_transient_for(self.win)
+        if self.parentwin:
+            dlg.set_transient_for(self.parentwin)
         a = Gtk.Entry()
         a.props.visibility = False
         b = Gtk.Entry()
         b.props.visibility = False
-        dlg.get_content_area().pack_start(a,
-            expand=True, fill=True, padding=0)
-        dlg.get_content_area().pack_start(b)
+        dlg.get_content_area().pack_start(a, True, True, 0)
+        dlg.get_content_area().pack_start(b, True, True, 0)
         dlg.show_all()
         while not a.get_text() or a.get_text() != b.get_text():
             if dlg.run() != Gtk.ResponseType.OK:
                 return False
-        self.store.create(a.get_text())
+        self.store.create(a.get_text().encode('utf-8'))
         dlg.hide()
         return True
+
+class Application(object):
+    def __init__(self):
+        self.win = Gtk.Window()
+        self.win.connect('delete-event', lambda *a: Gtk.main_quit())
+        self.win.connect('key-press-event', self.windowkey)
+        self.win.show()
+        self.store = Storage()
 
     def update_search(self, widget):
         val = widget.get_text().lower()
@@ -174,6 +186,25 @@ class Application(object):
                     self.password.grab_focus()
                 else:
                     self.select_rec(self.list, *self.list.get_cursor())
+            elif event.keyval == Gdk.KEY_y:
+                daemondir = os.path.expanduser('~/.cache/cryp/daemon')
+                if not os.path.isdir(daemondir):
+                    os.makedirs(daemondir)
+                ministore = Storage(daemondir)
+                if PasswordGui(ministore, self.win).check_pass():
+                    for uid, _, _ in self.store.titles():
+                        txt = self.store.entry(uid)
+                        if not daemon_section.search(txt):
+                            continue
+                        for i in section.split(txt)[1:]:
+                            i = i.strip()
+                            if not i.startswith('daemon:'):
+                                continue
+                            key = i[len('daemon:'):i.index('\n')].strip()
+                            sec = self.store.secret(uid)
+                            ministore.update_entry(uid, key)
+                            ministore.update_secret(uid, sec)
+
             else:
                 return False
             return True
@@ -191,7 +222,7 @@ class Application(object):
         self.icon.set_visible(False)
 
     def run(self):
-        if not self.check_pass():
+        if not PasswordGui(self.store, self.win).check_pass():
             return False
         self.fill_main()
         self.show_icon()
