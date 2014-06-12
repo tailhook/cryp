@@ -3,7 +3,7 @@ from distutils.extension import Extension
 from Cython.Distutils import build_ext
 
 setup(name='Cryp',
-      version='0.2',
+      version='0.3',
       description='Simple password management application',
       author='Paul Colomiets',
       author_email='pc@gafol.net',
