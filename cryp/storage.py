@@ -60,7 +60,7 @@ class Storage(object):
         """Yields uid, title, description for each item in store"""
         for i in glob.glob(os.path.join(self.root, '*a')):
             data = self.read(i).decode('utf-8')
-            val = data.splitlines()[0]
+            val = data.splitlines()[0] if data else '<empty>'
             uid = os.path.basename(i)[:-1]
             yield uid, val, data
 
