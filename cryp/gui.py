@@ -13,6 +13,8 @@ PASSWORD_CHARS = string.digits + string.ascii_letters
 PASSWORD_LENGTH = 20
 daemon_section = re.compile(r"^-{5,}\s*daemon:", re.M)
 section = re.compile(r"^-{5,}", re.M)
+MASK = (Gdk.ModifierType.CONTROL_MASK | Gdk.ModifierType.SHIFT_MASK
+       | Gdk.ModifierType.MOD4_MASK)  # super or win key
 
 class PasswordGui(object):
 
@@ -70,6 +72,8 @@ class PasswordGui(object):
 class Application(object):
     def __init__(self):
         self.win = Gtk.Window()
+        self.win.set_events(
+            self.win.get_events() | Gdk.EventMask.KEY_PRESS_MASK)
         self.win.connect('delete-event', lambda *a: Gtk.main_quit())
         self.win.connect('key-press-event', self.windowkey)
         self.win.show()
@@ -132,7 +136,7 @@ class Application(object):
         self.password.set_text(self.store.secret(uid))
 
     def windowkey(self, widget, event):
-        if event.state == Gdk.ModifierType.CONTROL_MASK:
+        if event.state & MASK == Gdk.ModifierType.CONTROL_MASK:
             if event.keyval == Gdk.KEY_n:
                 self.recname = str(uuid.uuid4())
                 self.fill_rec()
