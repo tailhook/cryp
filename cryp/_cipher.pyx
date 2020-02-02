@@ -15,13 +15,13 @@ cdef extern from "openssl/evp.h":
 
     EVP_CIPHER_CTX *EVP_CIPHER_CTX_new()
     void EVP_CIPHER_CTX_free(EVP_CIPHER_CTX *)
-    int EVP_EncryptInit_ex(EVP_CIPHER_CTX *ctx, EVP_CIPHER *typ, void *eng,
+    int EVP_EncryptInit_ex(EVP_CIPHER_CTX *ctx, const EVP_CIPHER *typ, void *eng,
                 unsigned char *key, unsigned char *iv)
     int EVP_EncryptFinal_ex(EVP_CIPHER_CTX *ctx, unsigned char *out,
                 int *outl)
     int EVP_EncryptUpdate(EVP_CIPHER_CTX *ctx, unsigned char *out,
                 int *outl, unsigned char *inp, int inl)
-    int EVP_DecryptInit_ex(EVP_CIPHER_CTX *ctx, EVP_CIPHER *typ, void *eng,
+    int EVP_DecryptInit_ex(EVP_CIPHER_CTX *ctx, const EVP_CIPHER *typ, void *eng,
                 unsigned char *key, unsigned char *iv)
     int EVP_DecryptFinal_ex(EVP_CIPHER_CTX *ctx, unsigned char *out,
                 int *outl)
@@ -29,10 +29,10 @@ cdef extern from "openssl/evp.h":
                 int *outl, unsigned char *inp, int inl)
     int EVP_CIPHER_CTX_set_key_length(EVP_CIPHER_CTX *x, int keylen)
     int EVP_CIPHER_CTX_set_padding(EVP_CIPHER_CTX *x, int padding)
-    EVP_CIPHER *EVP_aes_128_cbc()
-    EVP_CIPHER *EVP_aes_256_cbc()
-    EVP_CIPHER *EVP_bf_cbc()
-    int EVP_CIPHER_block_size(EVP_CIPHER *)
+    const EVP_CIPHER *EVP_aes_128_cbc()
+    const EVP_CIPHER *EVP_aes_256_cbc()
+    const EVP_CIPHER *EVP_bf_cbc()
+    int EVP_CIPHER_block_size(const EVP_CIPHER *)
 
 
 
@@ -45,7 +45,7 @@ cdef int check(int value) except -1:
         raise ValueError(PyUnicode_FromString(
             ERR_reason_error_string(ERR_get_error())))
 
-cdef object _encrypt(EVP_CIPHER *ciph,
+cdef object _encrypt(const EVP_CIPHER *ciph,
     unsigned char *data, int dlen, unsigned char *key, int klen):
     cdef int tmp_len = 0
     cdef int out_len = 0
@@ -74,10 +74,10 @@ def aes_encrypt(data, key):
         data, len(data), key, len(key))
 
 def bf_encrypt(data, key):
-    return _encrypt(<EVP_CIPHER *>EVP_bf_cbc(),
+    return _encrypt(<const EVP_CIPHER *>EVP_bf_cbc(),
         data, len(data), key, len(key))
 
-cdef object _decrypt(EVP_CIPHER *ciph,
+cdef object _decrypt(const EVP_CIPHER *ciph,
     unsigned char *data, int dlen, unsigned char *key, int klen):
     cdef int tmp_len = 0
     cdef int out_len = 0
@@ -92,7 +92,7 @@ cdef object _decrypt(EVP_CIPHER *ciph,
             key, <unsigned char *>defaultiv))
         check(EVP_DecryptUpdate(ctx, out, &out_len, data, dlen))
         tmp_len += out_len
-        check(EVP_EncryptFinal_ex(ctx, out+out_len, &out_len))
+        check(EVP_DecryptFinal_ex(ctx, out+out_len, &out_len))
     finally:
         EVP_CIPHER_CTX_free(ctx)
     tmp_len += out_len
@@ -100,9 +100,9 @@ cdef object _decrypt(EVP_CIPHER *ciph,
     return output
 
 def aes_decrypt(data, key):
-    return _decrypt(<EVP_CIPHER *>EVP_aes_256_cbc(),
+    return _decrypt(<const EVP_CIPHER *>EVP_aes_256_cbc(),
         data, len(data), key, len(key))
 
 def bf_decrypt(data, key):
-    return _decrypt(<EVP_CIPHER *>EVP_bf_cbc(),
+    return _decrypt(<const EVP_CIPHER *>EVP_bf_cbc(),
         data, len(data), key, len(key))
